@@ -25,7 +25,7 @@ class MarkupSitemapXML extends WireData implements Module {
 	public function init() {
 		// Intercept a request for an URL ending in sitemap.xml and output
 		if (isset($_SERVER['REQUEST_URI']) && strlen($_SERVER['REQUEST_URI']) - strlen('/sitemap.xml') === strrpos($_SERVER['REQUEST_URI'], '/sitemap.xml')) {
-			$this->addHookBefore("ProcessPageView::pageNotFound",$this,"renderSitemap");
+			$this->addHookAfter("ProcessPageView::pageNotFound",$this,"renderSitemap");
 		}
 	}
 
@@ -70,7 +70,7 @@ class MarkupSitemapXML extends WireData implements Module {
 			$cache =  wire('modules')->get("MarkupCache");
 			if(!$output = $cache->get("MarkupSitemapXML$startpagestr$langname", 3600)) {
 				$output = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
-				$output .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+				$output .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">';
 				$output .= $this->sitemapListPage(wire('pages')->get($startpage));
 				$output .= "\n</urlset>";
 				$cache->save($output);
@@ -80,6 +80,17 @@ class MarkupSitemapXML extends WireData implements Module {
 			exit();
 	}
 
+	public function sitemapListPageLanguages($page) {
+		if(!wire('modules')->isInstalled('LanguageSupportPageNames')) return '';
+
+		$languages = "";
+		foreach ($this->languages as $language) {
+			if($this->languages->getDefault()->id === $language->id) continue;
+			$languages .= "    <xhtml:link rel=\"alternate\" hreflang=\"{$language->code}\" href=\"{$page->localHttpUrl($language->id)}\" />\n";
+		}
+		return $languages;
+	}
+
 	public function sitemapListPage($page) {
 		$entry = "";
 		if ($page->viewable() && ($page->sitemap_ignore == 0 || $page->path == '/')) { // $page->path part added so that it ignores hiding the homepage, else you wouldn't have ANY pages returned
@@ -87,6 +98,7 @@ class MarkupSitemapXML extends WireData implements Module {
 			$entry = "\n  <url>\n";
 			$entry .= "    <loc>{$page->httpUrl}</loc>\n";
 			$entry .= "    <lastmod>{$modified}</lastmod>\n";
+			$entry .= $this->sitemapListPageLanguages($page);
 			$entry .= "  </url>";
 		}
 		// Fix #12 by FlipZoomMedia | David Karich
